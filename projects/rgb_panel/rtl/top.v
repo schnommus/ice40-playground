@@ -34,8 +34,9 @@
 `default_nettype none
 
 //`define STREAM
-`define PATTERN
+//`define PATTERN
 //`define VIDEO
+`define EURORACK
 
 module top (
 	// RGB panel PMOD
@@ -77,8 +78,16 @@ module top (
 	input  wire slave_clk,
 `endif
 
-	// PMOD2 buttons
-	input  wire [2:0] pmod_btn,
+`ifdef EURORACK
+    output  P2_1,
+    inout   P2_2,
+    output  P2_3,
+    output  P2_4,
+    output  P2_7,
+    input   P2_8,
+    output  P2_9,
+    output  P2_10,
+`endif
 
 	// Clock
 	input  wire clk_12m
@@ -242,6 +251,74 @@ module top (
 		.fbw_wren(fbw_wren),
 		.frame_swap(frame_swap),
 		.frame_rdy(frame_rdy),
+		.clk(clk),
+		.rst(rst)
+	);
+`endif
+
+`ifdef EURORACK
+    wire sample_clk;
+    wire [15:0] sample_out0;
+    wire [15:0] sample_out1;
+    wire [15:0] sample_out2;
+    wire [15:0] sample_out3;
+    wire [15:0] sample_in0;
+    wire [15:0] sample_in1;
+    wire [15:0] sample_in2;
+    wire [15:0] sample_in3;
+
+    sample sample_instance (
+        .sample_clk  (sample_clk),
+        // Note: inputs samples are inverted by analog frontend
+        // Should add +1 for precise 2s complement sign change
+        .sample_in0 (~sample_out0),
+        .sample_in1 (~sample_out1),
+        .sample_in2 (~sample_out2),
+        .sample_in3 (~sample_out3),
+        .sample_out0 (sample_in0),
+        .sample_out1 (sample_in1),
+        .sample_out2 (sample_in2),
+        .sample_out3 (sample_in3)
+    );
+
+    ak4619 ak4619_instance (
+        .clk     (clk),
+        .pdn     (P2_3),
+        .mclk    (P2_4),
+        .bick    (P2_10),
+        .lrck    (P2_9),
+        .sdin1   (P2_7),
+        .sdout1  (P2_8),
+        .i2c_scl (P2_1),
+        .i2c_sda (P2_2),
+        .sample_clk  (sample_clk),
+        .sample_out0 (sample_out0),
+        .sample_out1 (sample_out1),
+        .sample_out2 (sample_out2),
+        .sample_out3 (sample_out3),
+        .sample_in0 (sample_in0),
+        .sample_in1 (sample_in1),
+        .sample_in2 (sample_in2),
+        .sample_in3 (sample_in3)
+    );
+
+	pgen_euro #(
+		.N_ROWS(N_BANKS * N_ROWS),
+		.N_COLS(N_COLS),
+		.BITDEPTH(BITDEPTH)
+	) pgen_euro_I (
+		.fbw_row_addr({fbw_bank_addr, fbw_row_addr}),
+		.fbw_row_store(fbw_row_store),
+		.fbw_row_rdy(fbw_row_rdy),
+		.fbw_row_swap(fbw_row_swap),
+		.fbw_data(fbw_data),
+		.fbw_col_addr(fbw_col_addr),
+		.fbw_wren(fbw_wren),
+		.frame_swap(frame_swap),
+		.frame_rdy(frame_rdy),
+        .sample0(sample_out0),
+        .sample1(sample_out1),
+        .sample_clk(sample_clk),
 		.clk(clk),
 		.rst(rst)
 	);

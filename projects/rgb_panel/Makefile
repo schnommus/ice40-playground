@@ -7,6 +7,10 @@ PROJ_RTL_SRCS := $(addprefix rtl/, \
 	sysmgr.v \
 	vgen.v \
 	vstream.v \
+	pgen_euro.v \
+	ak4619.v \
+	i2cinit.v \
+	sample.v \
 )
 PROJ_TESTBENCHES := \
 	hub75_top_tb
