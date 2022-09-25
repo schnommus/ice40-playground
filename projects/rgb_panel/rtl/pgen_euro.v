@@ -33,6 +33,25 @@
 
 `default_nettype none
 
+module bram (
+        input clk_r, clk_w, wen, ren,
+        input [11:0] waddr,
+        input [11:0] raddr,
+        input [7:0] wdata,
+        output reg [7:0] rdata
+);
+        reg [7:0] mem [0:4095];
+        initial mem[0] <= 255;
+        always @(posedge clk_w) begin
+                if (wen)
+                        mem[waddr] <= wdata;
+        end
+        always @(posedge clk_r) begin
+                if (ren)
+                        rdata <= mem[raddr];
+        end
+endmodule
+
 module pgen_euro #(
 	parameter integer N_ROWS   = 64,	// # of rows (must be power of 2!!!)
 	parameter integer N_COLS   = 64,	// # of columns
@@ -57,6 +76,8 @@ module pgen_euro #(
 
     input wire [15:0] sample0,
     input wire [15:0] sample1,
+    input wire [15:0] sample2,
+    input wire [15:0] sample3,
     input wire sample_clk,
 
 	// Clock / Reset
@@ -159,24 +180,47 @@ module pgen_euro #(
 	// Front-Buffer write
 	// ------------------
 
-    reg [31:0] sample_xy[0:31];
-    wire [4:0] sample_x = 5'hF + (sample0[15:11]<<1);
-    wire [4:0] sample_y = 5'hF + (sample1[15:11]<<1);
 
-    integer i;
-    always @(posedge sample_clk or posedge frame_swap)
-    begin
-        if(frame_swap)
-            for(i = 0; i != 32; i=i+1)
-                sample_xy[i] <= 0;
-        else
-            sample_xy[sample_x][sample_y] <= 1'b1;
+    reg [15:0] sample0_latched;
+    reg [15:0] sample1_latched;
+    reg [15:0] sample2_latched;
+    reg [15:0] sample3_latched;
+    reg [12:0] slowdec = 13'h0;
+
+    always @(posedge sample_clk) begin
+        sample0_latched <= sample0 + 16'h8000;
+        sample1_latched <= sample1 + 16'h8000;
+        sample2_latched <= sample2 + 16'h8000;
+        sample3_latched <= sample3;
+        slowdec <= slowdec + 1;
     end
 
-	assign color[0] = 8'h00;
-	assign color[2] = 8'h00;
-	assign color[1] =
-		((sample_xy[cnt_col>>1][cnt_row>>1]) ? 8'hFF : 8'h00);
+    wire [11:0] cur_px_r = cnt_row*64 + cnt_col;
+    wire persist = slowdec[12];
+    wire [11:0] cur_px_w =  persist ?
+                             (64*sample0_latched[15:10] + sample1_latched[15:10]) :
+                             slowdec[11:0];
+
+    wire one = 1'b1;
+
+    wire [7:0] color_bits = sample2_latched[15:8];
+    wire [7:0] fbuf_wdata = persist ? color_bits : 8'h0;
+    wire [7:0] fbuf_rdata;
+
+    bram fbuf_bram(
+        .clk_r(clk),
+        .clk_w(sample_clk),
+        .wen(one),
+        .ren(one),
+        .waddr(cur_px_w),
+        .raddr(cur_px_r),
+        .wdata(fbuf_wdata),
+        .rdata(fbuf_rdata)
+    );
+
+	assign color[0] = {fbuf_rdata[7:5], 5'h0};
+	assign color[1] = {fbuf_rdata[4:2], 5'h0};
+	assign color[2] = {fbuf_rdata[1:0], 6'h0};
 
 	// Write enable and address
 	assign fbw_wren = fsm_state == ST_GEN_ROW;

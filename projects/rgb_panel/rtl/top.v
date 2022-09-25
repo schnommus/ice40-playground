@@ -37,6 +37,7 @@
 //`define PATTERN
 //`define VIDEO
 `define EURORACK
+`define NO_PLL
 
 module top (
 	// RGB panel PMOD
@@ -258,31 +259,62 @@ module top (
 
 `ifdef EURORACK
     wire sample_clk;
-    wire [15:0] sample_out0;
-    wire [15:0] sample_out1;
-    wire [15:0] sample_out2;
-    wire [15:0] sample_out3;
-    wire [15:0] sample_in0;
-    wire [15:0] sample_in1;
-    wire [15:0] sample_in2;
-    wire [15:0] sample_in3;
 
-    sample sample_instance (
+    // Raw samples to/from CODEC
+    wire signed [15:0] sample_adc0;
+    wire signed [15:0] sample_adc1;
+    wire signed [15:0] sample_adc2;
+    wire signed [15:0] sample_adc3;
+    wire signed [15:0] sample_dac0;
+    wire signed [15:0] sample_dac1;
+    wire signed [15:0] sample_dac2;
+    wire signed [15:0] sample_dac3;
+
+    // Calibrated samples to/from CODEC
+    wire signed [15:0] cal_in0;
+    wire signed [15:0] cal_in1;
+    wire signed [15:0] cal_in2;
+    wire signed [15:0] cal_in3;
+    wire signed [15:0] cal_out0;
+    wire signed [15:0] cal_out1;
+    wire signed [15:0] cal_out2;
+    wire signed [15:0] cal_out3;
+
+    input_cal input_cal_instance (
+        .clk     (clk_12m),
         .sample_clk  (sample_clk),
         // Note: inputs samples are inverted by analog frontend
         // Should add +1 for precise 2s complement sign change
-        .sample_in0 (~sample_out0),
-        .sample_in1 (~sample_out1),
-        .sample_in2 (~sample_out2),
-        .sample_in3 (~sample_out3),
-        .sample_out0 (sample_in0),
-        .sample_out1 (sample_in1),
-        .sample_out2 (sample_in2),
-        .sample_out3 (sample_in3)
+        .adc_in0 (~sample_adc0),
+        .adc_in1 (~sample_adc1),
+        .adc_in2 (~sample_adc2),
+        .adc_in3 (~sample_adc3),
+        .cal_in0 (cal_in0),
+        .cal_in1 (cal_in1),
+        .cal_in2 (cal_in2),
+        .cal_in3 (cal_in3)
     );
 
+    output_cal output_cal_instance (
+        .clk        (clk_12m),
+        .sample_clk (sample_clk),
+        .cal_out0   (cal_out0),
+        .cal_out1   (cal_out1),
+        .cal_out2   (cal_out2),
+        .cal_out3   (cal_out3),
+        .dac_out0   (sample_dac0),
+        .dac_out1   (sample_dac1),
+        .dac_out2   (sample_dac2),
+        .dac_out3   (sample_dac3)
+    );
+
+    assign cal_out0 = cal_in0;
+    assign cal_out1 = cal_in1;
+    assign cal_out2 = cal_in2;
+    assign cal_out3 = cal_in3;
+
     ak4619 ak4619_instance (
-        .clk     (clk),
+        .clk     (clk_12m),
         .pdn     (P2_3),
         .mclk    (P2_4),
         .bick    (P2_10),
@@ -292,14 +324,14 @@ module top (
         .i2c_scl (P2_1),
         .i2c_sda (P2_2),
         .sample_clk  (sample_clk),
-        .sample_out0 (sample_out0),
-        .sample_out1 (sample_out1),
-        .sample_out2 (sample_out2),
-        .sample_out3 (sample_out3),
-        .sample_in0 (sample_in0),
-        .sample_in1 (sample_in1),
-        .sample_in2 (sample_in2),
-        .sample_in3 (sample_in3)
+        .sample_out0 (sample_adc0),
+        .sample_out1 (sample_adc1),
+        .sample_out2 (sample_adc2),
+        .sample_out3 (sample_adc3),
+        .sample_in0 (sample_dac0),
+        .sample_in1 (sample_dac1),
+        .sample_in2 (sample_dac2),
+        .sample_in3 (sample_dac3)
     );
 
 	pgen_euro #(
@@ -316,8 +348,10 @@ module top (
 		.fbw_wren(fbw_wren),
 		.frame_swap(frame_swap),
 		.frame_rdy(frame_rdy),
-        .sample0(sample_out0),
-        .sample1(sample_out1),
+        .sample0(cal_in0),
+        .sample1(cal_in1),
+        .sample2(cal_in2),
+        .sample2(cal_in3),
         .sample_clk(sample_clk),
 		.clk(clk),
 		.rst(rst)
