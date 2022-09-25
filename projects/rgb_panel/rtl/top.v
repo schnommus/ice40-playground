@@ -351,7 +351,7 @@ module top (
         .sample0(cal_in0),
         .sample1(cal_in1),
         .sample2(cal_in2),
-        .sample2(cal_in3),
+        .sample3(cal_in3),
         .sample_clk(sample_clk),
 		.clk(clk),
 		.rst(rst)

@@ -184,7 +184,7 @@ module pgen_euro #(
     reg [15:0] sample0_latched;
     reg [15:0] sample1_latched;
     reg [15:0] sample2_latched;
-    reg [15:0] sample3_latched;
+    reg signed [15:0] sample3_latched;
     reg [12:0] slowdec = 13'h0;
 
     always @(posedge sample_clk) begin
@@ -196,7 +196,7 @@ module pgen_euro #(
     end
 
     wire [11:0] cur_px_r = cnt_row*64 + cnt_col;
-    wire persist = slowdec[12];
+    wire persist = sample3_latched > 4*2000;
     wire [11:0] cur_px_w =  persist ?
                              (64*sample0_latched[15:10] + sample1_latched[15:10]) :
                              slowdec[11:0];
@@ -218,9 +218,9 @@ module pgen_euro #(
         .rdata(fbuf_rdata)
     );
 
-	assign color[0] = {fbuf_rdata[7:5], 5'h0};
-	assign color[1] = {fbuf_rdata[4:2], 5'h0};
-	assign color[2] = {fbuf_rdata[1:0], 6'h0};
+	assign color[0] = {fbuf_rdata[7], fbuf_rdata[4], 6'h0};
+	assign color[1] = {fbuf_rdata[6], fbuf_rdata[3], 6'h0};
+	assign color[2] = {fbuf_rdata[5], fbuf_rdata[2], 6'h0};
 
 	// Write enable and address
 	assign fbw_wren = fsm_state == ST_GEN_ROW;
